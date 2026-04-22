@@ -1127,7 +1127,8 @@ pub async fn run_udp_proxy<T: AsyncRead + AsyncWrite + Unpin>(
         move |inbound| async move {
             let outbound =
                 udp_bind_random_port(outbound_bind_ip).err_when("binding outbound udp socket")?;
-
+            let inbound = UdpSocket::from_std(inbound.into()).err_when("wrapping inbound socket")?;
+            let outbound = UdpSocket::from_std(outbound.into()).err_when("wrapping outbound socket")?;
             transfer_udp(inbound, outbound).await
         },
     )
@@ -1318,9 +1319,7 @@ async fn handle_udp_responses(
 }
 
 /// Run a bidirectional UDP SOCKS proxy for a given pair of inbound (SOCKS client) and outbound sockets.
-pub async fn transfer_udp(inbound: Socket, outbound: Socket) -> Result<(), SocksServerError> {
-    let inbound = UdpSocket::from_std(inbound.into()).err_when("wrapping inbound socket")?;
-    let outbound = UdpSocket::from_std(outbound.into()).err_when("wrapping outbound socket")?;
+pub async fn transfer_udp(inbound: UdpSocket, outbound: UdpSocket) -> Result<(), SocksServerError> {
     let req_fut = handle_udp_requests(&inbound, &outbound);
     let res_fut = handle_udp_responses(&inbound, &outbound);
     try_join!(req_fut, res_fut).map(|_| ())
